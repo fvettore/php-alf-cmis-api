@@ -1,13 +1,14 @@
 <?php
 /***********************************************************************************
-*	This small piece of code shows how it is simple to implement
-*	a working repo-browser using this API
+* This small piece of code shows a very simple implementation of
+* a working repo-browser using this API
 *
-*	Useful for development too: it shows node ID for every object listed....
+* Useful for development too: it shows node ID for every object listed....
 *
-*	USAGE: simply copy this folder on a reachable folder fo your webserver
-*	(ensure your webserver can access to your alfresco server)
-*	Advanced functions like DELETE and MODIFY documents can be easilly added
+* USAGE: simply copy this folder on a reachable folder of your webserver
+* (ensure your webserver can access to your alfresco server)
+*
+* Advanced functions as DELETE and MODIFY documents can be easilly added
 ************************************************************************************/
 ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">

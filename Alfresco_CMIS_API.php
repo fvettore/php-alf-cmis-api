@@ -2,7 +2,7 @@
 /**************************************************************************
 *	ALFRESCO PHP CMIS API
 *	© 2013 by Fabrizio Vettore - fabrizio(at)vettore.org
-*	V0.1a
+*	V 0.1a
 *
 *	BASIC repo and object handling:
 *	Create, upload, download, delete, change properties.

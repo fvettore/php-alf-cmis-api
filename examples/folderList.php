@@ -11,7 +11,11 @@ $repoUrl=$argv[1];
 $username=$argv[2];
 $password=$argv[3];
 $path=$argv[4];
+
+//Load folder
 $folder= new CMISalfObject($repoUrl,$username,$password,null,null,$path);
+if(!$folder->loaded) die("\nSORRY! cannot open folder!\nThe last HTTP request returned the following status: ".$folder->lastHttpStatus."\n\n");
+
 $folder->listContent();
 
 //uncomment the following for printing DATA STRUCT of all contained objects

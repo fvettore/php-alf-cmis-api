@@ -28,6 +28,7 @@
 *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *
 **************************************************************************/
+define("HTTP_OK", 200);
 
 //MAIN CLASS FOR HANDLING THE REPO 
 class CMISalfRepo
@@ -40,6 +41,7 @@ class CMISalfRepo
 	public $connected=FALSE;
 	//last http reply for debugging purpose can be accessed by the program
 	public $lastHttp;
+	public $lastHttpStatus;//for debugging
 
 
 function __construct($url, $username = null, $password = null){
@@ -55,6 +57,7 @@ function connect($url, $username, $password){
 	$ch=curl_init();
 	$reply=$this->getHttp($url,$username,$password);
 	$this->lastHttp=$reply;
+	if($reply==FALSE)return FALSE;
 	//complex handling of different namespaces returned;
 	//ATOM->APP->CMISRA
 //	echo $reply;
@@ -75,6 +78,15 @@ function connect($url, $username, $password){
 	return$this->repoId;
 }
 
+//check for ERROR
+function checkHttpCode($code){
+	//valid code from 200 to 299
+	//200 OK
+	//201 DOCUMENT CREATED
+	//202 ACCEPTED......
+	if($code>=200 && $code < 300) return TRUE;//IS OK
+	else return FALSE;//Not OK: error code returned
+}
 
 //Handles HTTP requests with GET method
 function getHttp($url, $username, $password){
@@ -84,11 +96,11 @@ function getHttp($url, $username, $password){
 	curl_setopt($ch, CURLOPT_USERPWD,"$username:$password");
 	$reply=curl_exec($ch);
 	$this->lastHttp=$reply;
-	if(curl_errno($ch)){
-		echo curl_error($ch);
-		return FALSE;
-	}
-	else return $reply;
+	$status=curl_getinfo($ch);
+	//get status
+	$this->lastHttpStatus=$status['http_code'];
+	if($this->checkHttpCode($status['http_code'])) return $reply;
+	else return FALSE;
 	}
 
 //Handles HTTP requests with POST method
@@ -104,12 +116,11 @@ function postHttp($url, $username, $password,$postfields){
 	curl_setopt($ch, CURLOPT_POSTFIELDS, $postfields); 
 	$reply=curl_exec($ch);
 	$this->lastHttp=$reply;
-	if(curl_errno($ch)){
-		echo curl_error($ch);
-		return FALSE;
-	}
-	else return $reply;
-
+	$status=curl_getinfo($ch);
+	//get status
+	$this->lastHttpStatus=$status['http_code'];
+	if($this->checkHttpCode($status['http_code'])) return $reply;
+	else return FALSE;
 	}
 
 //Handles HTTP requests with PUT method
@@ -137,11 +148,11 @@ function putHttp($url, $username, $password,$postfields){
 	$this->lastHttp=$reply;
 	fclose($fp);
 	unlink("put.xml");
-	if(curl_errno($ch)){
-		echo curl_error($ch);
-		return FALSE;
-	}
-	else return $reply;
+	$status=curl_getinfo($ch);
+	//get status
+	$this->lastHttpStatus=$status['http_code'];
+	if($this->checkHttpCode($status['http_code'])) return $reply;
+	else return FALSE;
 	}
 
 //Handles HTTP requests with DELETE method
@@ -153,14 +164,12 @@ function deleteHttp($url, $username, $password){
 	curl_setopt($ch, CURLOPT_USERPWD,"$username:$password");
 	$reply=curl_exec($ch);
 	$this->lastHttp=$reply;
-	if(curl_errno($ch)){
-		echo curl_error($ch);
-		return FALSE;
+	$status=curl_getinfo($ch);
+	//get status
+	$this->lastHttpStatus=$status['http_code'];
+	if($this->checkHttpCode($status['http_code'])) return TRUE;
+	else return FALSE;
 	}
-	else return $reply;
-
-	}
-
 
 //END of CLASS
 }
@@ -172,7 +181,7 @@ class CMISalfObject extends CMISalfRepo
 //some properties accessible from the program after loading object
 public $properties=array();
 public $aspects=array();
-public $objLoaded=FALSE;
+public $loaded=FALSE;
 public $objId;
 public $contentUrl;
 //A complete list of all contained objects with their properties and aspects
@@ -215,11 +224,13 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 		$newurl=$this->entryUrl($objId);
 		$reply=$this->getHttp($newurl,$this->username,$this->password);
 	}
+	//FAILED http request - no need to go on
+	if($reply==FALSE){
+		$this->loaded=FALSE;
+		return FALSE;
+	}
 
 	$objdata=simplexml_load_string($reply);
-	if($objdata==FALSE){
-//			return FALSE;
-	}
 
 	//very complex handling of different namespaces returned;
 	//ATOM->CMISRA-> CMIS -> ASPECTS
@@ -228,7 +239,7 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 	$cmisra=$objdata->children($this->namespaces['cmisra']);
 	$cmis=$cmisra->children($this->namespaces['cmis']);
 	$this->cmisobject=$cmis;
-	$this->objLoaded=TRUE;
+	$this->loaded=TRUE;
 //	print_r($cmis);
 //	print_r($this->namespaces);
 	if($atom->content)$this->contentUrl=(string)$atom->content->attributes()->src;//useful for downloading content
@@ -246,7 +257,7 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 		}
 	}
 
-	//Getting object PROPERTIES with different attributes
+	//Getting object PROPERTIES within different attributes
 	//PropertyString
 	for($x=0;$x<count($cmis->properties->propertyString);$x++){
 		$propertyDefinitionId=$cmis->properties->propertyString[$x]->attributes()->propertyDefinitionId;
@@ -279,6 +290,7 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 		}		
 	}
 	$this->objId=$this->properties['cmis:objectId'];
+	return TRUE;
 }
 	
 //Initializes content array (for easy access to the contained objects)
@@ -309,7 +321,6 @@ public function listContent(){
 		}
 		$tempdoc[$x]=new CMISalfObject($this->url,$this->username,$this->password,null,$objUrl);
 		$this->containedObjects[$x]->objUrl=$objUrl;
-
 		$this->containedObjects[$x]->author=(string)$ent->author->name;
 		$this->containedObjects[$x]->title=(string)$ent->title;
 		if($ent->content)$this->containedObjects[$x]->content=(string)$ent->content->attributes()->src;//useful for downloading content
@@ -317,7 +328,6 @@ public function listContent(){
 		$this->containedObjects[$x]->aspects=$tempdoc[$x]->aspects;
 	}
 }
-
 
 
 //RETURNS the MIME content of the current object
@@ -399,7 +409,7 @@ xmlns:cmisra=\"http://docs.oasis-open.org/ns/cmis/restatom/200908/\">
 	<cmisra:content>
 		<cmisra:mediatype>$type</cmisra:mediatype>
                         <cmisra:base64>$base64_content</cmisra:base64>
-		</cmisra:content>
+	</cmisra:content>
 	<cmisra:object>
 		<cmis:properties>
 	        <cmis:propertyId propertyDefinitionId=\"cmis:objectTypeId\">
@@ -412,7 +422,9 @@ xmlns:cmisra=\"http://docs.oasis-open.org/ns/cmis/restatom/200908/\">
 
 	$url=$this->childrenUrl($this->objId);
  	$result=$this->postHttp($url,$this->username,$this->password,$inquiry);
-	return $this->getObjectId($result);
+	//if something went wrong you can check the $this->lastHttpCode
+	if($result)return $this->getObjectId($result);
+	else return FALSE;
 }
 
 //ASPECT set/modification on the current object
@@ -446,14 +458,11 @@ xmlns:cmisra=\"http://docs.oasis-open.org/ns/cmis/restatom/200908/\">
 }
 
 
-
 //DELETES node
 public function delete(){
 	$url=$this->entryUrl($this->properties['alfcmis:nodeRef']);
-	$result=$this->deleteHttp($url,$this->username,$this->password);
-	//reload modified object
+	return $this->deleteHttp($url,$this->username,$this->password);
 }
-
 
 //returns object id fom a XML node
 function getObjectId($node){
@@ -474,7 +483,6 @@ function getObjectId($node){
 	}			
 	return FALSE;//not found (is it possible???? :-) )
 }
-
 
 //THE FOLLOWING ARE COMPATIBLE WITH ALFERSCO 4 CMISATOM IMPLEMENTATION ONLY
 

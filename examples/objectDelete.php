@@ -6,7 +6,7 @@
 *****************************************************/
 require_once "../Alfresco_CMIS_API.php";
 
-if(count($argv)<5)die("  PARAMETER(s) MISSING!\n  USAGE: php folderList.php repoUrl username password path\n  EXAMPLE: php objecdDelete.php http://localhost:8080/alfresco/cmisatom admin password /\n\n");
+if(count($argv)<5)die("  PARAMETER(s) MISSING!\n  USAGE: php objectDelete.php repoUrl username password path\n  EXAMPLE: php objecdDelete.php http://localhost:8080/alfresco/cmisatom admin password /\n\n");
 $repoUrl=$argv[1];
 $username=$argv[2];
 $password=$argv[3];

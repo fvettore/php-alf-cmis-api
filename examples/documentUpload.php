@@ -7,7 +7,7 @@
 *****************************************************/
 require_once "../Alfresco_CMIS_API.php";
 
-if(count($argv)<6)die("  PARAMETER(s) MISSING!\n  USAGE: php folderList.php repoUrl username password folderpath filepath\n  EXAMPLE: php folderList.php http://localhost:8080/alfresco/cmisatom admin password / TEXTFILE.txt\n\n");
+if(count($argv)<6)die("  PARAMETER(s) MISSING!\n  USAGE: php documentUpload.php repoUrl username password folderpath filepath\n  EXAMPLE: php documnetUpload.php http://localhost:8080/alfresco/cmisatom admin password / TEXTFILE.txt\n\n");
 $repoUrl=$argv[1];
 $username=$argv[2];
 $password=$argv[3];

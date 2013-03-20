@@ -2,7 +2,7 @@
 /**************************************************************************
 *	ALFRESCO PHP CMIS API
 *	© 2013 by Fabrizio Vettore - fabrizio(at)vettore.org
-*	V 0.4
+*	V 0.41
 *
 *	BASIC repo and object handling:
 *	Create, upload, download, delete, change properties.
@@ -12,7 +12,7 @@
 *	COMPATIBILTY:
 *	ALFRESCO 4.x with cmisatom binding
 *	(url like: http://alfrescoserver:8080/alfresco/cmisatom)
-*	Partial compatibility with the prevoius version (browsing object OK)
+*	Partial compatibility with the prevoius deprecated version
 *	(http://alfrescoserver:8080/alfresco/service/cmis) (under development)
 *
 *    This program is free software: you can redistribute it and/or modify
@@ -235,7 +235,6 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 		$reply=$this->getHttp($objUrl,$this->username,$this->password);
 	}
 	else if($objPath){
-		$url=$this->pathUrl($objPath);
 		$urltemplate=$this->uritemplates['objectbypath'];
 		$url=str_replace("{path}",urlencode($objPath),$urltemplate);
 		//dirty method for removing unused {templates} in the url
@@ -246,8 +245,6 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 	}
 	else {
 		//Get object info under ENTRY
-
-		$url=$this->pathUrl($objId);
 		$urltemplate=$this->uritemplates['objectbyid'];
 		$url=str_replace("{id}",urlencode($objId),$urltemplate);
 		//dirty method for removing unused {templates} in the url
@@ -272,12 +269,7 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 	$cmis=$cmisra->children($this->namespaces['cmis']);
 	$this->cmisobject=$cmis;
 	$this->loaded=TRUE;
-//	print_r($cmis);
-//	print_r($this->namespaces);
 	if($atom->content)$this->contentUrl=(string)$atom->content->attributes()->src;//useful for downloading content
-//	print_r ($app);
-
-
 
 	if($objdata->link)$links=$objdata->link;
 	//On the new alfresco is under ATOM namespace
@@ -295,7 +287,9 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 
 */	
 		if($rel=='up')$this->parentUrl=$href;
-		if($rel=='down')$this->childrenUrl=$href;
+		//not to be confused with descendant
+		if($rel=='down' && $type=="application/atom+xml;type=feed")
+			$this->childrenUrl=$href;
 		if($rel=='edit')$this->editUrl=$href;
 		if($rel=='self')$this->selfUrl=$href;
 		
@@ -336,9 +330,6 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 		}		
 	}
 	$this->objId=$this->properties['cmis:objectId'];
-
-//	print_r($this->properties);
-
 	return TRUE;
 }
 	
@@ -350,7 +341,6 @@ public function listContent(){
 		//NOT A FOLDER!!!!
 		return FALSE;
 	}
-//	$newurl=$this->childrenUrl($this->objId);
  	$newurl=$this->childrenUrl;
 	$reply=$this->getHttp($newurl,$this->username,$this->password);
 	$objdata=simplexml_load_string($reply);
@@ -428,9 +418,8 @@ public function createFolder($foldername){
 </cmisra:object>
 </atom:entry>
 ";	
-	$url=$this->childrenUrl($this->objId);
+	$url=$this->childrenUrl;
 	$result=$this->postHttp($url,$this->username,$this->password,$inquiry);
-
 	return $this->getObjectId($result);
 }
 
@@ -472,7 +461,7 @@ xmlns:cmisra=\"http://docs.oasis-open.org/ns/cmis/restatom/200908/\">
 </atom:entry>
 ";
 
-	$url=$this->childrenUrl($this->objId);
+	$url=$this->childrenUrl;
  	$result=$this->postHttp($url,$this->username,$this->password,$inquiry);
 	//if something went wrong you can check the $this->lastHttpCode
 	if($result)return $this->getObjectId($result);
@@ -480,6 +469,8 @@ xmlns:cmisra=\"http://docs.oasis-open.org/ns/cmis/restatom/200908/\">
 }
 
 //ASPECT set/modification on the current object
+//CURRENTLY NOT WORKING WITH ALFRESCO3.x 
+// with old deprecated service http://alfresco.loc:8080/alfresco/service/cmis
 public function setAspect($aspect,$value){
 	
 	$inquiry="<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
@@ -503,7 +494,7 @@ xmlns:cmisra=\"http://docs.oasis-open.org/ns/cmis/restatom/200908/\">
 </atom:entry>
 ";
 
-	$url=$this->entryUrl($this->properties['alfcmis:nodeRef']);
+	$url=$this->selfUrl;
 	$result=$this->putHttp($url,$this->username,$this->password,$inquiry);
 	//reload modified object
 	$this->loadCMISObject($this->properties['alfcmis:nodeRef']);
@@ -512,7 +503,7 @@ xmlns:cmisra=\"http://docs.oasis-open.org/ns/cmis/restatom/200908/\">
 
 //DELETES node
 public function delete(){
-	$url=$this->entryUrl($this->properties['alfcmis:nodeRef']);
+	$url=$this->selfUrl;
 	return $this->deleteHttp($url,$this->username,$this->password);
 }
 
@@ -535,35 +526,6 @@ function getObjectId($node){
 	}			
 	return FALSE;//not found (is it possible???? :-) )
 }
-
-//THE FOLLOWING ARE COMPATIBLE WITH ALFERSCO 4 CMISATOM IMPLEMENTATION ONLY
-
-//returns the ENTRY url based on object ID
-function entryUrl($objId){
-	$newurl=$this->url."/".$this->repoId."/entry?id=".urlencode($objId);
-	return $newurl;
-}
-//returns the CHILDREN url based on object ID
-function childrenUrl($objId){
-	$newurl=$this->url."/".$this->repoId."/children?id=".urlencode($objId);
-	return $newurl;
-}
-//returns the CONTENT url based on object ID
-function contentUrl($objId){
-	$newurl=$this->url."/".$this->repoId."/content?id=".urlencode($objId);
-	return $newurl;
-}
-//returns the PARENT url based on object ID
-function parentUrl($objId){
-	$newurl=$this->url."/".$this->repoId."/parent?id=".urlencode($objId);
-	return $newurl;
-}
-//returns the PATH url based on path
-function pathUrl($path){
-	$newurl=$this->url."/".$this->repoId."/path?path=".urlencode($path);
-	return $newurl;
-}
-
 //END of CLASS
 }
 

@@ -2,7 +2,7 @@
 /**************************************************************************
 *	ALFRESCO PHP CMIS API
 *	© 2013 by Fabrizio Vettore - fabrizio(at)vettore.org
-*	V 0.2a
+*	V 0.4
 *
 *	BASIC repo and object handling:
 *	Create, upload, download, delete, change properties.
@@ -12,7 +12,8 @@
 *	COMPATIBILTY:
 *	ALFRESCO 4.x with cmisatom binding
 *	(url like: http://alfrescoserver:8080/alfresco/cmisatom)
-*
+*	Partial compatibility with the prevoius version (browsing object OK)
+*	(http://alfrescoserver:8080/alfresco/service/cmis) (under development)
 *
 *    This program is free software: you can redistribute it and/or modify
 *    it under the terms of the GNU General Public License as published by
@@ -42,7 +43,7 @@ class CMISalfRepo
 	//last http reply for debugging purpose can be accessed by the program
 	public $lastHttp;
 	public $lastHttpStatus;//for debugging
-
+	public $uritemplates;
 
 function __construct($url, $username = null, $password = null){
 	$this->url=$url;
@@ -60,20 +61,31 @@ function connect($url, $username, $password){
 	if($reply==FALSE)return FALSE;
 	//complex handling of different namespaces returned;
 	//ATOM->APP->CMISRA
-//	echo $reply;
 	$repodata=simplexml_load_string($reply);
-//	print_r($repodata);
-	if($repodata==FALSE){
-//	return FALSE;
-	}
 	$this->namespaces=$repodata->getNameSpaces(true);
-	if($app=$repodata->children($this->namespaces['app']))
-		$cmisra=$app->children($this->namespaces['cmisra']);
-	else $cmisra=$repodata->children($this->namespaces['cmisra']);
+	//Different implementation of namespaces:
+	//Alfresco 3.x - []->CMISRA
+	//Alfresco 4.x - APP->CMISRA
+	if(isset($this->namespaces['app']))
+		$app=$repodata->children($this->namespaces['app']);
+	else 
+		$app=$repodata->children();
+	$cmisra=$app->children($this->namespaces['cmisra']);	
+	$uritemplates=$cmisra->children($this->namespaces['cmis']);
 	$cmis=$cmisra->children($this->namespaces['cmis']);
 	$this->rootFolderId=$cmis->rootFolderId;
 	$this->repoId=$cmis->repositoryId;
 	$this->cmisobject=$cmis;
+
+	//get all uri templates for different implementations (for example alfresco 3.x)
+	//URITEMPLATES explain how the URL must be composed in order to retrieve
+	//CMIS object from a repo
+	foreach($cmisra->uritemplate as $template){
+		$tempuri=$template->template;
+		$type=$template->type;
+
+		$this->uritemplates["$type"]=$tempuri;	
+	}
 	$this->connected=TRUE;
 	return$this->repoId;
 }
@@ -90,6 +102,7 @@ function checkHttpCode($code){
 
 //Handles HTTP requests with GET method
 function getHttp($url, $username, $password){
+//	echo $url;
 	$ch=curl_init();
 	curl_setopt($ch, CURLOPT_URL, $url );
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE ); 
@@ -184,6 +197,10 @@ public $aspects=array();
 public $loaded=FALSE;
 public $objId;
 public $contentUrl;
+public $selfUrl;
+public $childrenUrl;
+public $parentUrl;
+public $editUrl;
 //A complete list of all contained objects with their properties and aspects
 //Must be initialized with listContent() method.
 public $containedObjects=array();
@@ -210,6 +227,8 @@ function __construct($url, $username = null, $password = null,$objId = null,$obj
 function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 	$this->objId=$objId;
 	$this->objUrl=$objUrl;
+
+	//	print_r($this->uritemplates);
 	
 	//BE CAREFUL to access objects directly by their SELF url or PATH....
 	if($objUrl){
@@ -217,12 +236,25 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 	}
 	else if($objPath){
 		$url=$this->pathUrl($objPath);
+		$urltemplate=$this->uritemplates['objectbypath'];
+		$url=str_replace("{path}",urlencode($objPath),$urltemplate);
+		//dirty method for removing unused {templates} in the url
+		$url=str_replace("{","<",$url);
+		$url=str_replace("}",">",$url);
+		$url=strip_tags($url);
 		$reply=$this->getHttp($url,$this->username,$this->password);
 	}
 	else {
 		//Get object info under ENTRY
-		$newurl=$this->entryUrl($objId);
-		$reply=$this->getHttp($newurl,$this->username,$this->password);
+
+		$url=$this->pathUrl($objId);
+		$urltemplate=$this->uritemplates['objectbyid'];
+		$url=str_replace("{id}",urlencode($objId),$urltemplate);
+		//dirty method for removing unused {templates} in the url
+		$url=str_replace("{","<",$url);
+		$url=str_replace("}",">",$url);
+		$url=strip_tags($url);
+		$reply=$this->getHttp($url,$this->username,$this->password);
 	}
 	//FAILED http request - no need to go on
 	if($reply==FALSE){
@@ -245,16 +277,28 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 	if($atom->content)$this->contentUrl=(string)$atom->content->attributes()->src;//useful for downloading content
 //	print_r ($app);
 
-	foreach($objdata->link as $link){
+
+
+	if($objdata->link)$links=$objdata->link;
+	//On the new alfresco is under ATOM namespace
+	else if($atom->link)$links=$atom->link;
+
+	foreach($links as $link){
 	$rel= $link->attributes()->rel;
 	$href= $link->attributes()->href;
 	$type= $link->attributes()->type;
-		if($rel=="down"){	
-			echo "\nCHILDREN: $href\n";
-		}
-		else if($rel=="up"){	
-			echo "\nPARENT: $href\n";
-		}
+/*		//for debugging list LINKS
+		echo "\n================\n";
+		echo "REL $rel\n";
+		echo "HREF $href\n";
+		echo "TYPE $type\n";
+
+*/	
+		if($rel=='up')$this->parentUrl=$href;
+		if($rel=='down')$this->childrenUrl=$href;
+		if($rel=='edit')$this->editUrl=$href;
+		if($rel=='self')$this->selfUrl=$href;
+		
 	}
 
 	//Getting object PROPERTIES within different attributes
@@ -278,7 +322,9 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 	}			
 	//Getting object ASPECTS
 	//Driving me crazy with NESTED NAMESPACES :-)
-	$aspectsdata=$cmis->children($this->namespaces['aspects'])->aspects;
+	//Moreover different implementation for Alfresco 3.x aspects namespace=alf
+	if(isset($this->namespaces['aspects']))$aspectsdata=$cmis->children($this->namespaces['aspects'])->aspects;
+	else $aspectsdata=$cmis->children($this->namespaces['alf'])->aspects;
 	for($x=0;$x<count($aspectsdata->properties);$x++){
 		$cmisprop=$aspectsdata->properties[$x]->children($this->namespaces['cmis']);
 		if($n=count($cmisprop)){
@@ -290,6 +336,9 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 		}		
 	}
 	$this->objId=$this->properties['cmis:objectId'];
+
+//	print_r($this->properties);
+
 	return TRUE;
 }
 	
@@ -301,12 +350,15 @@ public function listContent(){
 		//NOT A FOLDER!!!!
 		return FALSE;
 	}
-	$newurl=$this->childrenUrl($this->objId);
+//	$newurl=$this->childrenUrl($this->objId);
+ 	$newurl=$this->childrenUrl;
 	$reply=$this->getHttp($newurl,$this->username,$this->password);
 	$objdata=simplexml_load_string($reply);
 	$this->namespaces=$objdata->getNameSpaces(true);
 	//LOADING atom NAMESPACE
-	$atom=$objdata->children($this->namespaces['atom']);
+	//Different for Alfresco 3.x (no atom namespace)
+	if(isset($this->namespaces['atom']))$atom=$objdata->children($this->namespaces['atom']);
+	else $atom=$objdata->children();
 	//LOOKING FOR ENTRIES
 	$entry=$atom->entry;
 	//How many entries?

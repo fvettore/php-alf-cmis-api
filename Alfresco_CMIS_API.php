@@ -2,7 +2,7 @@
 /**************************************************************************
 *	ALFRESCO PHP CMIS API
 *	© 2013 by Fabrizio Vettore - fabrizio(at)vettore.org
-*	V 0.41
+*	V 0.45
 *
 *	BASIC repo and object handling:
 *	Create, upload, download, delete, change properties.
@@ -29,7 +29,6 @@
 *    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *
 **************************************************************************/
-define("HTTP_OK", 200);
 
 //MAIN CLASS FOR HANDLING THE REPO 
 class CMISalfRepo
@@ -113,12 +112,12 @@ function getHttp($url, $username, $password){
 	//get status
 	$this->lastHttpStatus=$status['http_code'];
 	if($this->checkHttpCode($status['http_code'])) return $reply;
-	else return FALSE;
+//	echo "$url\n$reply\n";
+	return FALSE;
 	}
 
 //Handles HTTP requests with POST method
 function postHttp($url, $username, $password,$postfields){
-
 	$ch=curl_init($url);
         curl_setopt($ch, CURLOPT_HEADER, false);
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE ); 
@@ -138,7 +137,6 @@ function postHttp($url, $username, $password,$postfields){
 
 //Handles HTTP requests with PUT method
 function putHttp($url, $username, $password,$postfields){
-
 	//found no other way for the PUT method to work fine other than putting a real file.
 	//May be there is a better solution.....
 	$fp=fopen("put.xml","wb+");
@@ -344,6 +342,12 @@ public function listContent(){
  	$newurl=$this->childrenUrl;
 	$reply=$this->getHttp($newurl,$this->username,$this->password);
 	$objdata=simplexml_load_string($reply);
+
+/*	if(!$objdata=simplexml_load_string($reply)){
+		echo "INVALID XML OBJECT\n\n$reply\n\n";
+		die();
+		return FALSE;
+	}*/
 	$this->namespaces=$objdata->getNameSpaces(true);
 	//LOADING atom NAMESPACE
 	//Different for Alfresco 3.x (no atom namespace)
@@ -353,7 +357,7 @@ public function listContent(){
 	$entry=$atom->entry;
 	//How many entries?
 	for($x=0;$x<count($entry);$x++){
-		$ent=$entry[$x];
+		$ent=$entry[$x];	
 		$link=$ent->link;
 		foreach($ent->link as $link){
 			//resolve all links looking for SELF
@@ -370,6 +374,59 @@ public function listContent(){
 		$this->containedObjects[$x]->aspects=$tempdoc[$x]->aspects;
 	}
 }
+
+
+//Initializes content array (for easy access to the contained objects)
+//Useful for browsing a folder with a lot of contentsin a repo 
+//The difference from the above is it doesn't ioitialize an object for any contained objects
+//but it doesn't return a compklete list of properties for any contained objects
+//It is useful in folder with a lot of document since it is CONSIDERABLY faster....
+public function quickListContent(){
+	//note the check on baseTypeId instead of objectId in order to include sites....
+	if($this->properties['cmis:baseTypeId']<>"cmis:folder"){	
+		//NOT A FOLDER!!!!
+		return FALSE;
+	}
+ 	$newurl=$this->childrenUrl;
+	$reply=$this->getHttp($newurl,$this->username,$this->password);
+	$objdata=simplexml_load_string($reply);
+/*	if(!$objdata=simplexml_load_string($reply)){
+		echo "INVALID XML OBJECT\n\n$reply\n\n";
+		die();
+		return FALSE;
+	}*/
+	$this->namespaces=$objdata->getNameSpaces(true);
+	//LOADING atom NAMESPACE
+	//Different for Alfresco 3.x (no atom namespace)
+	if(isset($this->namespaces['atom']))$atom=$objdata->children($this->namespaces['atom']);
+	else $atom=$objdata->children();
+	//LOOKING FOR ENTRIES
+	$entry=$atom->entry;
+	//How many entries?
+	for($x=0;$x<count($entry);$x++){
+		$ent=$entry[$x];	
+		$link=$ent->link;
+		foreach($ent->link as $link){
+			//resolve all links looking for SELF
+			$rel= $link->attributes()->rel;
+			$href= $link->attributes()->href;
+			if($rel=="self")$objUrl=$href;		
+			if($rel=="describedby"){
+				if(strpos($href,"cmis:folder")) 
+					$objType="cmis:folder";	
+				else 
+					$objType="cmis:document";
+			}
+			
+		}
+		$this->containedObjects[$x]->objUrl=(string)$objUrl;
+		$this->containedObjects[$x]->author=(string)$ent->author->name;
+		$this->containedObjects[$x]->title=(string)$ent->title;
+		$this->containedObjects[$x]->type=$objType;
+		if($ent->content)$this->containedObjects[$x]->content=(string)$ent->content->attributes()->src;//useful for downloading content
+	}
+}
+
 
 
 //RETURNS the MIME content of the current object
@@ -401,6 +458,8 @@ public function createFolder($foldername){
 		//NOT A FOLDER!!!!
 		return FALSE;
 	}
+	//ESCAPE & char
+	$foldername=str_replace("&","&#038;",$foldername);
 	//ATOM FEED for new folder	
 	$inquiry="<?xml version='1.0' encoding='UTF-8'?>
 <atom:entry 
@@ -425,7 +484,7 @@ public function createFolder($foldername){
 
 //UPLOADS a new file into a folder object
 //RETURNS new object id
-public function upload($filename){
+public function upload($filename,$mimetype=null){
 	//note the check on baseTypeId instead of objectId in order to include sites....
 	if($this->properties['cmis:baseTypeId']<>"cmis:folder"){	
 		//NOT A FOLDER!!!!
@@ -434,11 +493,13 @@ public function upload($filename){
 	$handle = fopen($filename, "r");
 	if(!$handle)return FALSE;//file not found
 	$contents = fread($handle, filesize($filename));
-	$type=mime_content_type($filename);
+	if(!$mimetype)$type=mime_content_type($filename);
+	else $type=$mimetype;
 	fclose($handle);
 	$base64_content=base64_encode($contents);
 
-
+	//ESCAPE & char
+	$fileescname=str_replace("&","&#038;",$filename);
 //ATOM FEED for new doc
 $inquiry="<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
 <atom:entry xmlns:cmis=\"http://docs.oasis-open.org/ns/cmis/core/200908/\" 
@@ -446,7 +507,7 @@ xmlns:cmism=\"http://docs.oasis-open.org/ns/cmis/messaging/200908/\"
 xmlns:atom=\"http://www.w3.org/2005/Atom\" 
 xmlns:app=\"http://www.w3.org/2007/app\" 
 xmlns:cmisra=\"http://docs.oasis-open.org/ns/cmis/restatom/200908/\"> 
-<atom:title>$filename</atom:title>
+<atom:title>$fileescname</atom:title>
 	<cmisra:content>
 		<cmisra:mediatype>$type</cmisra:mediatype>
                         <cmisra:base64>$base64_content</cmisra:base64>
@@ -472,7 +533,9 @@ xmlns:cmisra=\"http://docs.oasis-open.org/ns/cmis/restatom/200908/\">
 //CURRENTLY NOT WORKING WITH ALFRESCO3.x 
 // with old deprecated service http://alfresco.loc:8080/alfresco/service/cmis
 public function setAspect($aspect,$value){
-	
+
+	//ESCAPE & char
+	$value=str_replace("&","&#038;",$value);
 	$inquiry="<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>
 <atom:entry xmlns:cmis=\"http://docs.oasis-open.org/ns/cmis/core/200908/\"  
 xmlns:cmism=\"http://docs.oasis-open.org/ns/cmis/messaging/200908/\" 

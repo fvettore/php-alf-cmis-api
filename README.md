@@ -1,3 +1,51 @@
+
+=Alfesco PHP CMIS CLIENT=
+==Introduction==
+
+I couldn't find a working/maintained PHP client for the latest Alfresco 4.0 CMIS implementation (nothing seems to be maintained outside the big java world).<br>
+So I decided to create it by myself.<br>
+I recently used it to transfer some sites (thousands of documents and folders) from an old Alfresco 3.x repo to a new installation and it did the job.<br>
+you can find an example of a simple migration script in the [https://code.google.com/p/php-alf-cmis-api/source/checkout source].
+
+
+==Features==
+Object handling: create, upload, download, delete, edit properties, *edit aspects* as _title_ and _description_ (this is the real reason why i wrote it ;-))
+
+==Compatibility==
+ALFRESCO 4.x with cmisatom binding<br>
+(url like: http://alfresco:8080/alfresco/cmisatom)
+<br><br>
+Partial compatibility  (browsing and retrieving objects and aspects is OK) with old Alfresco (under development)
+<br>(url like  http://alfresco:8080/alfresco/service/api/cmis)
+
+==Installation==
+Simply include the main class in your code.
+
+==Requirements==
+PHP with CURL and XML enabled
+
+==Current status==
+This project is at a very initial stage.
+You can expect it works fine most of the time but it misses a lot of functionnality.<br>
+For example:
+  * Error handling
+  * Parameter should be sanitized in order to avoid breaking XML posted code
+  * SSL not tested yet.
+
+==Do you wish to contribute?==
+If you wish to join don't hexitate to contact me!
+
+==Many thanks to==
+[http://www.cifarelli.it CIFARELLI Spa] (my current company)<br>
+[http://alfresco.com Alfresco]
+
+==Found it useful?==
+The code is *absolutely free* even for commercial use, but donations will be appreciated :)
+<br><br>
+[http://us1.go2net.it/donate/ http://us1.go2net.it/donate/button.gif]
+
+
+
 Alfesco PHP CMIS CLIENT originally hosted on https://code.google.com/p/php-alf-cmis-api/
 
 Introduction

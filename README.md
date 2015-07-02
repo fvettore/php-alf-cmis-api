@@ -1,7 +1,7 @@
 
 Alfesco PHP CMIS CLIENT originally hosted on https://code.google.com/p/php-alf-cmis-api/
 
-Introduction
+##Introduction##
 
 I couldn't find a working/maintained PHP client for the latest Alfresco 4.0 CMIS implementation (nothing seems to be maintained outside the big java world).
 So I decided to create it by myself.

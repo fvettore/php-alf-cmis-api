@@ -27,13 +27,16 @@ This project is at a very initial stage. You can expect it works fine most of th
 For example:
 
 Error handling
-Parameter should be sanitized in order to avoid breaking XML posted code
-SSL not tested yet.
+*Parameter should be sanitized in order to avoid breaking XML posted code
+* SSL not tested yet.
+
 Do you wish to contribute?
+
 If you wish to join don't hexitate to contact me!
 
 Many thanks to
 CIFARELLI Spa (my current company)
+
 Alfresco
 
 Found it useful?

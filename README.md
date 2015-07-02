@@ -47,4 +47,4 @@ Alfresco
 
 Found it useful?
 
-The code is absolutely free even for commercial use, but donations will be appreciated :) 
+The code is absolutely free even for commercial use, but donations (paypal fabrizio [at] vettore.org) will be appreciated :) 

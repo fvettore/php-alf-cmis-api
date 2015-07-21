@@ -2,12 +2,13 @@
 /**************************************************************************
 *	ALFRESCO PHP CMIS API
 *	© 2013 by Fabrizio Vettore - fabrizio(at)vettore.org
-*	V 0.45
+*	V 0.55
 *
 *	BASIC repo and object handling:
 *	Create, upload, download, delete, change properties.
 *	Can change basic ASPECTS like TITLE and DESCRIPTION
 *	(this is the real reason why i wrote it ;-))
+*	BASIC repo QUERY 	
 *
 *	COMPATIBILTY:
 *	ALFRESCO 4.x with cmisatom binding
@@ -36,6 +37,7 @@ class CMISalfRepo
 	var $username;
 	var $url;
 	var $password;
+
 	public $repoId;//Very important
 	public $rootFolderId;//can be useful
 	public $connected=FALSE;
@@ -75,7 +77,6 @@ function connect($url, $username, $password){
 	$this->rootFolderId=$cmis->rootFolderId;
 	$this->repoId=$cmis->repositoryId;
 	$this->cmisobject=$cmis;
-
 	//get all uri templates for different implementations (for example alfresco 3.x)
 	//URITEMPLATES explain how the URL must be composed in order to retrieve
 	//CMIS object from a repo
@@ -89,7 +90,7 @@ function connect($url, $username, $password){
 	return$this->repoId;
 }
 
-//check for ERROR
+//check for ERRORS
 function checkHttpCode($code){
 	//valid code from 200 to 299
 	//200 OK
@@ -101,7 +102,7 @@ function checkHttpCode($code){
 
 //Handles HTTP requests with GET method
 function getHttp($url, $username, $password){
-//	echo $url;
+//	echo "<br>URL: $url</br>";
 	$ch=curl_init();
 	curl_setopt($ch, CURLOPT_URL, $url );
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE ); 
@@ -119,6 +120,7 @@ function getHttp($url, $username, $password){
 //Handles HTTP requests with POST method
 function postHttp($url, $username, $password,$postfields){
 	$ch=curl_init($url);
+//	echo "<br>URL: $url</br>";
         curl_setopt($ch, CURLOPT_HEADER, false);
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE ); 
 	curl_setopt($ch, CURLOPT_POST, TRUE ); 
@@ -136,7 +138,7 @@ function postHttp($url, $username, $password,$postfields){
 	}
 
 //Handles HTTP requests with PUT method
-function putHttp($url, $username, $password,$postfields){
+function putHttp($url, $username, $password,$postfields,$contentType="application/atom+xml;type=entry"){
 	//found no other way for the PUT method to work fine other than putting a real file.
 	//May be there is a better solution.....
 	$fp=fopen("put.xml","wb+");
@@ -153,7 +155,7 @@ function putHttp($url, $username, $password,$postfields){
 	curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE ); 
 	curl_setopt($ch, CURLOPT_PUT, TRUE ); 
 	curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "PUT");//probably unnecessary
-	curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Length: ' . strlen($postfields),"X-HTTP-Method-Override: PUT","Content-Type: application/atom+xml;type=entry"));
+	curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Length: ' . strlen($postfields),"X-HTTP-Method-Override: PUT","Content-Type: $contentType"));
 	curl_setopt($ch, CURLOPT_USERPWD,"$username:$password");
 	$reply=curl_exec($ch);
 	$this->lastHttp=$reply;
@@ -185,23 +187,31 @@ function deleteHttp($url, $username, $password){
 //END of CLASS
 }
 
-//OBJECT class is an extension of the REPo ABOVE
+//OBJECT class is an extension of the ABOVE REPO 
 class CMISalfObject extends CMISalfRepo
 {
 
-//some properties accessible from the program after loading object
-public $properties=array();
-public $aspects=array();
-public $loaded=FALSE;
-public $objId;
-public $contentUrl;
-public $selfUrl;
-public $childrenUrl;
-public $parentUrl;
-public $editUrl;
-//A complete list of all contained objects with their properties and aspects
-//Must be initialized with listContent() method.
-public $containedObjects=array();
+	//some properties accessible from the program after loading object
+	public $properties=array();
+	public $aspects=array();
+	public $loaded=FALSE;
+	public $objId;
+	public $contentUrl;
+	public $selfUrl;
+	public $childrenUrl;
+	public $parentUrl;
+	public $editUrl;
+
+	//variables for query
+	public $maxItems=100; //number of results to be fetched
+	public $skipCount=0; //initial skip results
+	private $queryResult;
+	public $num_rows=0;
+	private $fetchPosition=0; //position for queryresult->fetch_array()
+
+	//A complete list of all contained objects with their properties and aspects
+	//Must be initialized with listContent() method.
+	public $containedObjects=array();
 
 function __construct($url, $username = null, $password = null,$objId = null,$objUrl=null,$objPath=null){
 	$this->url=$url;
@@ -312,6 +322,12 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 		$value=(string)$cmis->properties->propertyDateTime[$x]->value;
 		$this->properties["$propertyDefinitionId"]=$value;
 	}			
+	//PropertyBoolean
+	for($x=0;$x<count($cmis->properties->propertyBoolean);$x++){
+		$propertyDefinitionId=$cmis->properties->propertyBoolean[$x]->attributes()->propertyDefinitionId;
+		$value=(string)$cmis->properties->propertyBoolean[$x]->value;
+		$this->properties["$propertyDefinitionId"]=$value;
+	}			
 	//Getting object ASPECTS
 	//Driving me crazy with NESTED NAMESPACES :-)
 	//Moreover different implementation for Alfresco 3.x aspects namespace=alf
@@ -343,11 +359,6 @@ public function listContent(){
 	$reply=$this->getHttp($newurl,$this->username,$this->password);
 	$objdata=simplexml_load_string($reply);
 
-/*	if(!$objdata=simplexml_load_string($reply)){
-		echo "INVALID XML OBJECT\n\n$reply\n\n";
-		die();
-		return FALSE;
-	}*/
 	$this->namespaces=$objdata->getNameSpaces(true);
 	//LOADING atom NAMESPACE
 	//Different for Alfresco 3.x (no atom namespace)
@@ -377,10 +388,10 @@ public function listContent(){
 
 
 //Initializes content array (for easy access to the contained objects)
-//Useful for browsing a folder with a lot of contentsin a repo 
-//The difference from the above is it doesn't ioitialize an object for any contained objects
-//but it doesn't return a compklete list of properties for any contained objects
-//It is useful in folder with a lot of document since it is CONSIDERABLY faster....
+//Useful for browsing a folder with a lot of contents in a repo 
+//The difference from the above is it doesn't initialize an object for any contained object
+//but it doesn't return a complete list of properties for any contained object
+//It is useful in folder with a lot of documents since it is CONSIDERABLY faster....
 public function quickListContent(){
 	//note the check on baseTypeId instead of objectId in order to include sites....
 	if($this->properties['cmis:baseTypeId']<>"cmis:folder"){	
@@ -426,7 +437,6 @@ public function quickListContent(){
 		if($ent->content)$this->containedObjects[$x]->content=(string)$ent->content->attributes()->src;//useful for downloading content
 	}
 }
-
 
 
 //RETURNS the MIME content of the current object
@@ -482,7 +492,6 @@ public function createFolder($foldername){
 	return $this->getObjectId($result);
 }
 
-//UPLOADS a new file into a folder object
 //RETURNS new object id
 public function upload($filename,$mimetype=null){
 	//note the check on baseTypeId instead of objectId in order to include sites....
@@ -570,7 +579,7 @@ public function delete(){
 	return $this->deleteHttp($url,$this->username,$this->password);
 }
 
-//returns object id fom a XML node
+//returns object id from a XML node
 function getObjectId($node){
 	$objdata=simplexml_load_string($node);
 	if($objdata==FALSE){
@@ -589,6 +598,75 @@ function getObjectId($node){
 	}			
 	return FALSE;//not found (is it possible???? :-) )
 }
+
+
+
+//Performs a CMIS query on the current repo. It is similar to MYSQLI.
+//Since there isn't anyting like SQL LIMIT, be careful to initaiize $this->maxItems to a reasonable value 
+//You can skip first n results by setting $this-skipCount	
+//
+//DEVELOPED AND TESTED on ALFRESCO 4
+//Probably not working with different versions due to different namesoace definition
+
+public function query($query){
+	$this->num_rows=0;
+	$this->fetchPosition=0;
+	unset($this->queryResult);
+
+	//XML for new query	
+	$inquiry="<cmis:query xmlns:cmis=\"http://docs.oasis-open.org/ns/cmis/core/200908/\">
+       <cmis:statement>$query</cmis:statement>
+       <cmis:searchAllVersions>false</cmis:searchAllVersions>
+       <cmis:includeAllowableActions>false</cmis:includeAllowableActions>
+       <cmis:maxItems>".$this->maxItems."</cmis:maxItems>
+       <cmis:skipCount>".$this->skipCount."</cmis:skipCount>
+</cmis:query>
+";	
+	$url=$this->childrenUrl;
+	$url=$this->url.$this->repoId."/query";
+	
+	$result=$this->postHttp($url,$this->username,$this->password,$inquiry);
+
+	if($result)$objdata=simplexml_load_string($result);
+	else return FALSE;
+
+	$namespaces=$objdata->getNameSpaces(true);
+
+	//Enjoy surfing trough nested namespaces :)
+	//definition for ALF4: ATOM->[entry]->CMISRA->CMIS
+	$atom=$objdata->children($namespaces['atom']);
+	$entry=$atom->entry;
+	$x=0;	
+	foreach($entry as $ent){
+		$cmisra=$ent->children($namespaces['cmisra']);
+		$cmis=$cmisra->children($namespaces['cmis']);
+		$prop=$cmis->properties;
+		$y=0;
+		foreach($prop as $p){
+			foreach($p as $a){
+				$field=(string)$a->attributes()->queryName;
+				$value=(string)$a->value;
+				$this->queryResult[$x][$field]=$value;
+				$this->queryResult[$x][$y]=$value;
+				$y++;
+			}
+		}
+		$x++;
+	}
+	$this->num_rows=count($this->queryResult);
+	if($this->num_rows)return $this;
+	else return false;
+}
+
+//fetches the query result array. Very similar to mysqli functions
+public function fetch_array(){
+	if($this->fetchPosition<($this->num_rows-1)){
+		$this->fetchPosition++;
+		return $this->queryResult[$this->fetchPosition];
+	}
+	else return false;
+}
+
 //END of CLASS
 }
 

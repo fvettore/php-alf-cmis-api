@@ -13,10 +13,11 @@ $password=$argv[3];
 $query=$argv[4];
 
 
-//Load folder
+//Load repository
 $repo= new CMISalfObject($repoUrl,$username,$password,null,null,"/");
 if(!$repo->loaded) die("\nSORRY! cannot open repo!\nThe last HTTP request returned the following status: ".$repo->lastHttpStatus."\n\n");
 
+//maximum number of rows returned by the query
 $repo->maxItems=5;
 $result=$repo->query($query);
 

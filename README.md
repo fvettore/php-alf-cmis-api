@@ -11,7 +11,14 @@ You can find an example of a simple migration script in the source.
 
 ####Features:####
 
-Object handling: create, upload, download, delete, edit properties, edit aspects as title and description (this is the real reason why i wrote it ;-))
+Object handling:
+* create
+* upload
+* download
+* delete
+* edit properties
+* edit aspects as title and description (this is the real reason why i wrote it ;-))
+
 Query 
 
 ####Compatibility####

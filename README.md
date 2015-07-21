@@ -7,7 +7,7 @@ originally hosted on https://code.google.com/p/php-alf-cmis-api/
 I couldn't find a working/maintained PHP client for the latest Alfresco 4.0 CMIS implementation (nothing seems to be maintained outside the big java world).
 So I decided to create it by myself.
 I recently used it to transfer some sites (thousands of documents and folders) from an old Alfresco 3.x repo to a new installation and it did the job.
-you can find an example of a simple migration script in the source.
+You can find an example of a simple migration script in the source.
 
 ####Features:####
 

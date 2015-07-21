@@ -11,14 +11,14 @@ You can find an example of a simple migration script in the source.
 
 ####Features:####
 
-#####Object handling:
+#####Object handling:#####
 * create
 * upload
 * download
 * delete
 * edit properties
 * edit aspects as title and description (this is the real reason why i wrote it ;-))
-#####Query 
+#####Query:#####
 * simple CMIS query on the repo
 
 ####Compatibility####

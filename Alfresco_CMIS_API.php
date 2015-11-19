@@ -1,8 +1,9 @@
+
 <?php
 /**************************************************************************
 *	ALFRESCO PHP CMIS API
 *	© 2013 by Fabrizio Vettore - fabrizio(at)vettore.org
-*	V 0.55
+*	V 0.6
 *
 *	BASIC repo and object handling:
 *	Create, upload, download, delete, change properties.
@@ -12,6 +13,7 @@
 *
 *	COMPATIBILTY:
 *	ALFRESCO 4.x with cmisatom binding
+*	ALFRESCO 5.x (not fully tested)
 *	(url like: http://alfrescoserver:8080/alfresco/cmisatom)
 *	Partial compatibility with the prevoius deprecated version
 *	(http://alfrescoserver:8080/alfresco/service/cmis) (under development)
@@ -331,7 +333,11 @@ function loadCMISObject($objId=null,$objUrl=null,$objPath=null){
 	//Getting object ASPECTS
 	//Driving me crazy with NESTED NAMESPACES :-)
 	//Moreover different implementation for Alfresco 3.x aspects namespace=alf
+	//Moreover different implementation for Alfresco 5 aspects namespace=e1
 	if(isset($this->namespaces['aspects']))$aspectsdata=$cmis->children($this->namespaces['aspects'])->aspects;
+	//different implementation for Alfresco 5 aspects namespace=e1
+	else if(isset($this->namespaces['e1']))$aspectsdata=$cmis->children($this->namespaces['e1'])->aspects;
+
 	else $aspectsdata=$cmis->children($this->namespaces['alf'])->aspects;
 	for($x=0;$x<count($aspectsdata->properties);$x++){
 		$cmisprop=$aspectsdata->properties[$x]->children($this->namespaces['cmis']);

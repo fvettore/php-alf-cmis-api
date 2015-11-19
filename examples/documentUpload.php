@@ -7,7 +7,7 @@
 *****************************************************/
 require_once "../Alfresco_CMIS_API.php";
 
-if(count($argv)<6)die("  PARAMETER(s) MISSING!\n  USAGE: php documentUpload.php repoUrl username password folderpath filepath\n  EXAMPLE: php documnetUpload.php http://localhost:8080/alfresco/cmisatom admin password / TEXTFILE.txt\n\n");
+if(count($argv)<6)die("  PARAMETER(s) MISSING!\n  USAGE: php documentUpload.php repoUrl username password folderpath filepath\n  EXAMPLE: php documentUpload.php http://localhost:8080/alfresco/cmisatom admin password / TEXTFILE.txt\n\n");
 $repoUrl=$argv[1];
 $username=$argv[2];
 $password=$argv[3];
@@ -38,6 +38,11 @@ if(!is_file($fileName))die("File not found!!\n");
 
 //upload
 $newDocId=$folder->upload($fileName);
+
+
+//Set document title (ASPECT)
+$uploadedDoc= new CMISalfObject($repoUrl,$username,$password,$newDocId);
+$uploadedDoc->setAspect("cm:title","This is a title");
 
 //the above returns FALSE if object cannot be loaded
 if(!$newDocId)echo "\n\nSORRY! cannot upload file!\nThe last HTTP request returned the following status: ".$folder->lastHttpStatus."\n\n";

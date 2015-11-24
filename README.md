@@ -21,7 +21,7 @@ You can find an example of a simple migration script in the source.
 
 ####Compatibility####
 
-ALFRESCO 4.x with cmisatom binding
+ALFRESCO 5.x with cmisatom binding
 (url like: http://alfresco:8080/alfresco/cmisatom) 
 
 Partial compatibility (browsing and retrieving objects and aspects is OK) with old Alfresco (under development) 

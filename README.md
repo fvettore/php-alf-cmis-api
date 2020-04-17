@@ -1,4 +1,3 @@
-
 ####Alfesco PHP CMIS CLIENT####
 originally hosted on https://code.google.com/p/php-alf-cmis-api/
 

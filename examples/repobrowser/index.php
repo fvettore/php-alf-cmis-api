@@ -47,7 +47,7 @@ RepoURL: <input type="TEXT" name="repourl" value="http://localhost:8080/alfresco
 <input type="submit" value="SUBMIT"></br>
 </form>
 </center>
-<?
+<?php
 
 }
 

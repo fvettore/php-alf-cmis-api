@@ -13,6 +13,8 @@
 *	COMPATIBILTY:
 *	ALFRESCO 4.x with cmisatom binding
 *	ALFRESCO 5.x (not fully tested)
+*	ALFRESCO Community 26.x with cmisatom binding (read operations tested)
+*	PHP 5.3 up to PHP 8.3
 *	(url like: http://alfrescoserver:8080/alfresco/cmisatom)
 *	Partial compatibility with the prevoius deprecated version
 *	(http://alfrescoserver:8080/alfresco/service/cmis) (under development)
@@ -33,6 +35,8 @@
 **************************************************************************/
 
 //MAIN CLASS FOR HANDLING THE REPO 
+// PHP 8.2+: allow dynamic properties. On PHP 5/7 the next line is just a comment.
+#[\AllowDynamicProperties]
 class CMISalfRepo
 {
 	var $username;
@@ -189,6 +193,7 @@ function deleteHttp($url, $username, $password){
 }
 
 //OBJECT class is an extension of the ABOVE REPO 
+#[\AllowDynamicProperties]
 class CMISalfObject extends CMISalfRepo
 {
 
@@ -382,6 +387,7 @@ public function listContent(){
 			if($rel=="self")$objUrl=$href;		
 		}
 		$tempdoc[$x]=new CMISalfObject($this->url,$this->username,$this->password,null,$objUrl);
+		$this->containedObjects[$x]=new stdClass();//PHP 8: no implicit object creation
 		$this->containedObjects[$x]->objUrl=$objUrl;
 		$this->containedObjects[$x]->author=(string)$ent->author->name;
 		$this->containedObjects[$x]->title=(string)$ent->title;
@@ -435,6 +441,7 @@ public function quickListContent(){
 			}
 			
 		}
+		$this->containedObjects[$x]=new stdClass();//PHP 8: no implicit object creation
 		$this->containedObjects[$x]->objUrl=(string)$objUrl;
 		$this->containedObjects[$x]->author=(string)$ent->author->name;
 		$this->containedObjects[$x]->title=(string)$ent->title;
